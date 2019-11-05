@@ -4,7 +4,6 @@
 #ifndef __ENDIANNESS__
 #define __ENDIANNESS__
 
-#include <array>
 #include <stdint.h>
 #include <type_traits>
 #include <utility>
@@ -30,9 +29,9 @@ enum class endian
     native = __BYTE_ORDER
 };
 template <class To, class From>
-typename std::enable_if<(sizeof(To) == sizeof(From)) && std::is_trivially_copyable<From>::value && std::is_trivial<To>::value,
-                        // this implementation requires that To is trivially default constructible
-                        To>::type
+std::enable_if_t<(sizeof(To) == sizeof(From)) && std::is_trivially_copyable<From>::value && std::is_trivial<To>::value,
+                 // this implementation requires that To is trivially default constructible
+                 To>
 // constexpr support needs compiler magic
 bit_cast(const From &src) noexcept
 {
@@ -65,6 +64,7 @@ struct Endian
 {
     static_assert(order == stl20::endian::little || order == stl20::endian::big,
                   "Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented");
+
     static constexpr bool isNative() noexcept { return order == stl20::endian::native || sizeof(T) == 1; }
     using value_type = typename T;
     T value;
@@ -74,18 +74,15 @@ struct Endian
     constexpr Endian(T t) noexcept : value(convertFrom<T, stl20::endian::native>(t)) {}
     //copy
     constexpr Endian(const Endian &other) noexcept : value(other.value) {}
-
     template <typename U, stl20::endian orderU>
     constexpr Endian(const Endian<U, orderU> &other) noexcept : value(convertFrom<U, orderU>(other.value))
     {}
-
     Endian &operator=(const Endian &other) noexcept
     {
         if (this != &other)
             value = other.value;
         return *this;
     }
-
     template <typename U, stl20::endian orderU>
     Endian &operator=(const Endian<U, orderU> &other) noexcept
     {
@@ -94,6 +91,9 @@ struct Endian
     }
     //move
     constexpr Endian(Endian &&other) noexcept : value(other.value) {}
+    template <typename U, stl20::endian orderU>
+    constexpr Endian(Endian<U, orderU> &&other) noexcept : value(convertFrom<U, orderU>(other.value))
+    {}
     Endian &operator=(Endian &&other) noexcept
     {
         std::swap(value, other.value);
@@ -105,9 +105,6 @@ struct Endian
         value = convertFrom(other);
         return *this;
     }
-    template <typename U, stl20::endian orderU>
-    constexpr Endian(Endian<U, orderU> &&other) noexcept : value(convertFrom<U, orderU>(other.value))
-    {}
 
     //type convertion
     operator T() const noexcept
