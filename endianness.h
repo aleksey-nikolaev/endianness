@@ -1,9 +1,10 @@
 // Copyright © 2019 Aleksey Nikolaev
-// License: http://opensource.org/licenses/MIT
+// License MIT: http://opensource.org/licenses/MIT
 
 #ifndef __ENDIANNESS__
 #define __ENDIANNESS__
 
+#include <array>
 #include <stdint.h>
 #include <type_traits>
 #include <utility>
@@ -28,7 +29,35 @@ enum class endian
     big = __BIG_ENDIAN,
     native = __BYTE_ORDER
 };
+template <class To, class From>
+typename std::enable_if<(sizeof(To) == sizeof(From)) && std::is_trivially_copyable<From>::value && std::is_trivial<To>::value,
+                        // this implementation requires that To is trivially default constructible
+                        To>::type
+// constexpr support needs compiler magic
+bit_cast(const From &src) noexcept
+{
+    To dst;
+    std::memcpy(&dst, &src, sizeof(To));
+    return dst;
+}
 } // namespace stl20
+// compile-time endianness swap based on http://stackoverflow.com/a/36937049
+template <class T, class U, std::size_t... N>
+static constexpr U byteSequenceSwap(U i, std::index_sequence<N...>) noexcept
+{
+    return (((i >> N * CHAR_BIT & std::uint8_t(-1)) << (sizeof(T) - 1 - N) * CHAR_BIT) | ...);
+}
+template <class T>
+static constexpr std::enable_if_t<!std::is_floating_point_v<T>, T> byteSwap(T i) noexcept
+{
+    return static_cast<T>(byteSequenceSwap<std::make_unsigned_t<T>>(i, std::make_index_sequence<sizeof(T)>{}));
+}
+
+template <class T>
+std::enable_if_t<std::is_floating_point_v<T>, T> byteSwap(T i) noexcept
+{
+    return stl20::bit_cast<T>(byteSwap(stl20::bit_cast<std::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>(i)));
+}
 
 #pragma pack(push, 1)
 template <typename T, stl20::endian order = stl20::endian::native>
@@ -36,32 +65,21 @@ struct Endian
 {
     static_assert(order == stl20::endian::little || order == stl20::endian::big,
                   "Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented");
-    union
-    {
-        T value;
-        unsigned char bytes[sizeof(T)];
-    };
+    static constexpr bool isNative() noexcept { return order == stl20::endian::native || sizeof(T) == 1; }
+    using value_type = typename T;
+    T value;
 
-    Endian() : value(T()) {}
+    Endian() noexcept : value(T()) {}
     ~Endian() = default;
-    Endian(T t)
-    {
-        if constexpr (order == stl20::endian::native || sizeof(T) == 1) {
-            value = t;
-        } else {
-            *this = Endian<T, stl20::endian::native>(t);
-        }
-    }
+    constexpr Endian(T t) noexcept : value(convertFrom<T, stl20::endian::native>(t)) {}
     //copy
-    Endian(const Endian &other) : value(other.value) {}
+    constexpr Endian(const Endian &other) noexcept : value(other.value) {}
 
     template <typename U, stl20::endian orderU>
-    Endian(const Endian<U, orderU> &other)
-    {
-        *this = other;
-    }
+    constexpr Endian(const Endian<U, orderU> &other) noexcept : value(convertFrom<U, orderU>(other.value))
+    {}
 
-    Endian &operator=(const Endian &other)
+    Endian &operator=(const Endian &other) noexcept
     {
         if (this != &other)
             value = other.value;
@@ -69,129 +87,121 @@ struct Endian
     }
 
     template <typename U, stl20::endian orderU>
-    Endian &operator=(const Endian<U, orderU> &other)
+    Endian &operator=(const Endian<U, orderU> &other) noexcept
     {
-        if constexpr (order == orderU || sizeof(T) == 1) {
-            value = other.value;
-        } else if constexpr (!std::is_same_v<T, U>) {
-            *this = Endian<T, orderU>(other);
-        } else {
-            value = other.value;
-            for (auto i = sizeof(T) / 2; i-- > 0;)
-                std::swap(bytes[i], bytes[sizeof(T) - 1 - i]);
-        }
+        value = convertFrom(other);
         return *this;
     }
     //move
-    Endian(Endian &&other) : value(other.value) {}
-    Endian &operator=(Endian &&other)
+    constexpr Endian(Endian &&other) noexcept : value(other.value) {}
+    Endian &operator=(Endian &&other) noexcept
     {
         std::swap(value, other.value);
         return *this;
     }
     template <typename U, stl20::endian orderU>
-    Endian &operator=(Endian<U, orderU> &&other)
+    Endian &operator=(Endian<U, orderU> &&other) noexcept
     {
-        *this = other;
+        value = convertFrom(other);
         return *this;
     }
     template <typename U, stl20::endian orderU>
-    Endian(Endian<U, orderU> &&other)
-    {
-        *this = other;
-    }
+    constexpr Endian(Endian<U, orderU> &&other) noexcept : value(convertFrom<U, orderU>(other.value))
+    {}
 
     //type convertion
-    operator T() const
+    operator T() const noexcept
     {
-        if constexpr (order == stl20::endian::native || sizeof(T) == 1) {
+        if constexpr (isNative()) {
             return value;
         } else {
-            Endian<T, stl20::endian::native> t(*this);
-            return t.value;
+            return Endian<T, stl20::endian::native>(*this).value;
         }
     }
 
     // operators
-    Endian operator|=(const Endian &other)
+    bool operator==(const Endian &other) const noexcept { return (value == other.value); }
+    bool operator!=(const Endian &other) const noexcept { return (value != other.value); }
+    Endian operator|=(const Endian &other) noexcept
     {
         value |= other.value;
         return *this;
     }
-    Endian operator&=(const Endian &other)
+    Endian operator&=(const Endian &other) noexcept
     {
         value &= other.value;
         return *this;
     }
-    Endian operator^=(const Endian &other)
+    Endian operator^=(const Endian &other) noexcept
     {
         value ^= other.value;
         return *this;
     }
-    Endian operator~() const
+    Endian operator~() const noexcept
     {
         Endian tmp;
         tmp.value = ~value;
         return tmp;
     }
-    Endian operator+=(const Endian &other) { return (*this = *this + other); }
-    Endian operator-=(const Endian &other) { return (*this = *this - other); }
-    Endian operator*=(const Endian &other) { return (*this = *this * other); }
-    Endian operator/=(const Endian &other) { return (*this = *this / other); }
-    Endian operator%=(const Endian &other) { return (*this = *this % other); }
+    Endian operator+=(const Endian &other) noexcept { return (*this = *this + other); }
+    Endian operator-=(const Endian &other) noexcept { return (*this = *this - other); }
+    Endian operator*=(const Endian &other) noexcept { return (*this = *this * other); }
+    Endian operator/=(const Endian &other) noexcept { return (*this = *this / other); }
+    Endian operator%=(const Endian &other) noexcept { return (*this = *this % other); }
+
     // postfix
-    Endian operator++(int)
+    Endian operator++(int) noexcept
     {
         Endian tmp(*this);
         operator++();
         return tmp;
     }
     // prefix
-    Endian &operator++()
+    Endian &operator++() noexcept
     {
-        if constexpr (order == stl20::endian::native || sizeof(T) == 1) {
+        if constexpr (isNative()) {
             ++value;
-        } else if constexpr (order == stl20::endian::big) {
-            for (auto i = sizeof(T); i-- > 0;) {
-                ++bytes[i];
-                if (bytes[i] != 0)
-                    break;
-            }
-        } else if constexpr (order == stl20::endian::little) {
-            for (unsigned i = 0; i < sizeof(T); i++) {
-                ++bytes[i];
-                if (bytes[i] != 0)
-                    break;
-            }
+        } else {
+            *this += Endian(1);
         }
         return *this;
     }
 
-    Endian operator--(int)
+    Endian operator--(int) noexcept
     {
         Endian tmp(*this);
         operator--();
         return tmp;
     }
 
-    Endian &operator--()
+    Endian &operator--() noexcept
     {
-        if constexpr (order == stl20::endian::native || sizeof(T) == 1) {
+        if constexpr (isNative()) {
             --value;
-        } else if constexpr (order == stl20::endian::big) {
-            for (auto i = sizeof(T); i-- > 0;) {
-                --bytes[i];
-                if (bytes[i] != (unsigned char)(-1))
-                    break;
-            }
-        } else if constexpr (order == stl20::endian::little) {
-            for (unsigned i = 0; i < sizeof(T); i++) {
-                --bytes[i];
-                if (bytes[i] != (unsigned char)(-1))
-                    break;
-            }
+        } else {
+            *this -= Endian(1);
         }
         return *this;
+    }
+
+private:
+    template <typename U, stl20::endian orderU>
+    static constexpr T convertFrom(const U &otherValue) noexcept
+    {
+        if constexpr (std::is_same_v<T, U>) {
+            if constexpr (order == orderU || sizeof(T) == 1)
+                return otherValue;
+            else
+                return byteSwap(otherValue);
+        } else if constexpr (sizeof(U) == 1 && sizeof(T) == 1) {
+            return static_cast<T>(otherValue);
+        } else {
+            if constexpr (orderU == stl20::endian::native || sizeof(U) == 1) {
+                return convertFrom<T, stl20::endian::native>(static_cast<T>(otherValue));
+            } else {
+                return convertFrom<T, stl20::endian::native>(static_cast<T>(byteSwap(otherValue)));
+            }
+        }
     }
 };
 #pragma pack(pop)
@@ -200,19 +210,5 @@ template <typename T>
 using LittleEndian = Endian<T, stl20::endian::little>;
 template <typename T>
 using BigEndian = Endian<T, stl20::endian::big>;
-
-using int16le = LittleEndian<int16_t>;
-using uint16le = LittleEndian<uint16_t>;
-using int32le = LittleEndian<int32_t>;
-using uint32le = LittleEndian<uint32_t>;
-using int64le = LittleEndian<int64_t>;
-using uint64le = LittleEndian<uint64_t>;
-
-using int16be = BigEndian<int16_t>;
-using uint16be = BigEndian<uint16_t>;
-using int32be = BigEndian<int32_t>;
-using uint32be = BigEndian<uint32_t>;
-using int64be = BigEndian<int64_t>;
-using uint64be = BigEndian<uint64_t>;
 } // namespace endianness
 #endif //__ENDIANNESS__

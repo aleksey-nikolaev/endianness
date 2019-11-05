@@ -5,6 +5,9 @@ set(installHeaders
 )
 add_library(Endian INTERFACE)
 set_target_properties(Endian PROPERTIES PUBLIC_HEADER ${installHeaders})
+if(MSVC)
+    add_custom_target(Endian.headers SOURCES ${installHeaders})
+endif()
 install(TARGETS Endian
     EXPORT endiannessConfig
     PUBLIC_HEADER DESTINATION include/endianness
