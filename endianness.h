@@ -208,4 +208,16 @@ using LittleEndian = Endian<T, stl20::endian::little>;
 template <typename T>
 using BigEndian = Endian<T, stl20::endian::big>;
 } // namespace endianness
+
+namespace std {
+template <typename T, endianness::stl20::endian order>
+struct hash<endianness::Endian<T, order>>
+{
+    std::size_t operator()(const endianness::Endian<T, order> &number) const noexcept
+    {
+        return std::hash<T>{}(number.value);
+    }
+};
+} // namespace std
+
 #endif //__ENDIANNESS__
