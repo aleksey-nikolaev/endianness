@@ -13,6 +13,10 @@ And [link](https://cmake.org/cmake/help/latest/command/target_link_libraries.htm
 ```
 target_link_libraries(<target> ENDIAN::Endian)
 ```
+### Debug Visualisation
+
+With happy debugging on MSVS you can use [Endian.natvis](https://github.com/aleksey-nikolaev/natvis-collection/blob/master/Endian.natvis)
+This `natvis` file can swap bytes of big-endian data for better view.
 
 ### Usage
 
