@@ -11,17 +11,17 @@
 #if __has_include(<bit>)
 #    include <bit> //stl c++20
 #else
-#ifdef _MSC_VER
+#    ifdef _MSC_VER
 constexpr int __LITTLE_ENDIAN = 1234;
 constexpr int __BIG_ENDIAN = 4321;
 constexpr int __PDP_ENDIAN = 3412;
 constexpr int __BYTE_ORDER = __LITTLE_ENDIAN;
-#else
-#    include "endian.h"
-#endif
-#if __BYTE_ORDER != __LITTLE_ENDIAN && __BYTE_ORDER != __BIG_ENDIAN
-#    error Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented
-#endif //__BYTE_ORDER
+#    else
+#        include "endian.h"
+#    endif
+#    if __BYTE_ORDER != __LITTLE_ENDIAN && __BYTE_ORDER != __BIG_ENDIAN
+#        error Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented
+#    endif //__BYTE_ORDER
 namespace std {
 enum class endian
 {
@@ -197,11 +197,10 @@ private:
         } else if constexpr (sizeof(U) == 1 && sizeof(T) == 1) {
             return static_cast<T>(otherValue);
         } else {
-            if constexpr (orderU == std::endian::native || sizeof(U) == 1) {
+            if constexpr (orderU == std::endian::native || sizeof(U) == 1)
                 return convertFrom<T, std::endian::native>(static_cast<T>(otherValue));
-            } else {
+            else
                 return convertFrom<T, std::endian::native>(static_cast<T>(byteSwap(otherValue)));
-            }
         }
     }
 };
