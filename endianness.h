@@ -90,7 +90,7 @@ struct Endian
     template <typename U, std::endian orderU>
     Endian &operator=(const Endian<U, orderU> &other) noexcept
     {
-        value = convertFrom(other);
+        value = convertFrom<U, orderU>(other);
         return *this;
     }
     //move
@@ -106,11 +106,11 @@ struct Endian
     template <typename U, std::endian orderU>
     Endian &operator=(Endian<U, orderU> &&other) noexcept
     {
-        value = convertFrom(other);
+        value = convertFrom<U, orderU>(other);
         return *this;
     }
 
-    //type convertion
+    //type conversion
     operator T() const noexcept
     {
         if constexpr (isNative()) {
