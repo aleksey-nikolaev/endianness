@@ -5,6 +5,10 @@ set(installHeaders
 )
 add_library(Endian INTERFACE)
 set_target_properties(Endian PROPERTIES PUBLIC_HEADER ${installHeaders})
+add_library(ENDIAN::Endian ALIAS Endian)
+target_include_directories(Endian INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
 if(MSVC)
     add_custom_target(Endian.headers SOURCES ${installHeaders} README.md LICENSE)
 endif()
