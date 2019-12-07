@@ -4,7 +4,13 @@ set(installHeaders
     endianness.h
 )
 add_library(Endian INTERFACE)
-set_target_properties(Endian PROPERTIES PUBLIC_HEADER ${installHeaders})
+if(${CMAKE_VERSION}` VERSION_GREATER_EQUAL "3.15.0")
+    set_target_properties(Endian PROPERTIES PUBLIC_HEADER ${installHeaders})
+else()
+    install(
+        FILES ${installHeaders}
+        DESTINATION include/endianness )
+endif()
 add_library(ENDIAN::Endian ALIAS Endian)
 target_include_directories(Endian INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
