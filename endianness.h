@@ -4,7 +4,8 @@
 #ifndef __ENDIANNESS__
 #define __ENDIANNESS__
 
-#include <stdint.h>
+#include <climits>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
@@ -22,6 +23,7 @@ constexpr int __BYTE_ORDER = __LITTLE_ENDIAN;
 #    if __BYTE_ORDER != __LITTLE_ENDIAN && __BYTE_ORDER != __BIG_ENDIAN
 #        error Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented
 #    endif //__BYTE_ORDER
+#    include <cstring>
 namespace std {
 enum class endian
 {
@@ -70,7 +72,7 @@ struct Endian
                   "Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented");
 
     static constexpr bool isNative() noexcept { return order == std::endian::native || sizeof(T) == 1; }
-    using value_type = typename T;
+    using value_type = T;
     T value;
 
     Endian() noexcept : value(T()) {}
