@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <utility>
+#include <functional>
 
 #if __has_include(<bit>)
 #    include <bit> //stl c++20
