@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <utility>
 
-#if __has_include(<bit>)
+#if defined(TRY_STL_20) && __has_include(<bit>)
 #    include <bit> //stl c++20
 #else
 #    ifdef _MSC_VER

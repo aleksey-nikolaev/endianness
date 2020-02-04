@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(Endian)
+
+option(BUILD_STL_20
+    "Build for STL 20"
+    OFF
+)
+
 set(installHeaders 
     endianness.h
 )
@@ -15,6 +21,9 @@ add_library(ENDIAN::Endian ALIAS Endian)
 target_include_directories(Endian INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+if(NOT BUILD_STL_20)
+    target_compile_definitions(Endian INTERFACE TRY_STL_20)
+endif()
 if(MSVC)
     add_custom_target(Endian.headers SOURCES ${installHeaders} README.md LICENSE)
 endif()
