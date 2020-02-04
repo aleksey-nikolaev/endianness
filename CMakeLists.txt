@@ -21,7 +21,7 @@ add_library(ENDIAN::Endian ALIAS Endian)
 target_include_directories(Endian INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-if(NOT BUILD_STL_20)
+if(BUILD_STL_20)
     target_compile_definitions(Endian INTERFACE TRY_STL_20)
 endif()
 if(MSVC)
