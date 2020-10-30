@@ -4,7 +4,6 @@ Endianness is very simple, light, header-only library designed to reduce convers
 * **Requires STL C++17**
 
 ### Build and Install
-Unfortunately, I can't found good way to check STL version. For example, `Emscripten` contains the `bit` header different from expected. So, for now the cmake option `BUILD_STL_20` will enable the define `TRY_STL_20`
 #### Usage after install
 Endianness library can be built and installed as any other cmake project. After that add to your CMake project file `CMakeLists.txt`:
 ```cmake

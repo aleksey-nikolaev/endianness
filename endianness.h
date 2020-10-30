@@ -10,8 +10,15 @@
 #include <type_traits>
 #include <utility>
 
-#if defined(TRY_STL_20) && __has_include(<bit>)
+#if __cplusplus >= 202002L
 #    include <bit> //stl c++20
+namespace utils {
+using endian = std::endian;
+
+template <typename To, typename From>
+using bit_cast = std::bit_cast<To, From>;
+} // namespace utils
+
 #else
 #    ifdef _MSC_VER
 constexpr int __LITTLE_ENDIAN = 1234;
@@ -25,7 +32,7 @@ constexpr int __BYTE_ORDER = __LITTLE_ENDIAN;
 #        error Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented
 #    endif //__BYTE_ORDER
 #    include <cstring>
-namespace std {
+namespace utils {
 enum class endian
 {
     little = __LITTLE_ENDIAN,
@@ -43,7 +50,7 @@ bit_cast(const From &src) noexcept
     std::memcpy(&dst, &src, sizeof(To));
     return dst;
 }
-} // namespace std
+} // namespace utils
 #endif
 
 namespace endianness {
@@ -62,26 +69,26 @@ static constexpr std::enable_if_t<!std::is_floating_point_v<T>, T> byteSwap(T i)
 template <class T>
 std::enable_if_t<std::is_floating_point_v<T>, T> byteSwap(T i) noexcept
 {
-    return std::bit_cast<T>(byteSwap(std::bit_cast<std::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>(i)));
+    return utils::bit_cast<T>(byteSwap(utils::bit_cast<std::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>(i)));
 }
 
 #pragma pack(push, 1)
-template <typename T, std::endian order = std::endian::native>
+template <typename T, utils::endian order = utils::endian::native>
 struct Endian
 {
-    static_assert(order == std::endian::little || order == std::endian::big,
+    static_assert(order == utils::endian::little || order == utils::endian::big,
                   "Only little/big endian are implemented. __PDP_ENDIAN and other are not implemented");
 
-    static constexpr bool isNative() noexcept { return order == std::endian::native || sizeof(T) == 1; }
+    static constexpr bool isNative() noexcept { return order == utils::endian::native || sizeof(T) == 1; }
     using value_type = T;
     T value;
 
     Endian() noexcept : value(T()) {}
     ~Endian() = default;
-    constexpr Endian(T t) noexcept : value(convertFrom<T, std::endian::native>(t)) {}
+    constexpr Endian(T t) noexcept : value(convertFrom<T, utils::endian::native>(t)) {}
     //copy
     constexpr Endian(const Endian &other) noexcept : value(other.value) {}
-    template <typename U, std::endian orderU>
+    template <typename U, utils::endian orderU>
     constexpr Endian(const Endian<U, orderU> &other) noexcept : value(convertFrom<U, orderU>(other.value))
     {}
     Endian &operator=(const Endian &other) noexcept
@@ -90,15 +97,15 @@ struct Endian
             value = other.value;
         return *this;
     }
-    template <typename U, std::endian orderU>
+    template <typename U, utils::endian orderU>
     Endian &operator=(const Endian<U, orderU> &other) noexcept
     {
-        value = convertFrom<U, orderU>(other.value);
+        value = convertFrom<U, orderU>(other);
         return *this;
     }
     //move
     constexpr Endian(Endian &&other) noexcept : value(other.value) {}
-    template <typename U, std::endian orderU>
+    template <typename U, utils::endian orderU>
     constexpr Endian(Endian<U, orderU> &&other) noexcept : value(convertFrom<U, orderU>(other.value))
     {}
     Endian &operator=(Endian &&other) noexcept
@@ -106,10 +113,10 @@ struct Endian
         std::swap(value, other.value);
         return *this;
     }
-    template <typename U, std::endian orderU>
+    template <typename U, utils::endian orderU>
     Endian &operator=(Endian<U, orderU> &&other) noexcept
     {
-        value = convertFrom<U, orderU>(other.value);
+        value = convertFrom<U, orderU>(other);
         return *this;
     }
 
@@ -119,7 +126,7 @@ struct Endian
         if constexpr (isNative()) {
             return value;
         } else {
-            return Endian<T, std::endian::native>(*this).value;
+            return Endian<T, utils::endian::native>(*this).value;
         }
     }
 
@@ -189,7 +196,7 @@ struct Endian
     }
 
 private:
-    template <typename U, std::endian orderU>
+    template <typename U, utils::endian orderU>
     static constexpr T convertFrom(const U &otherValue) noexcept
     {
         if constexpr (std::is_same_v<T, U>) {
@@ -200,30 +207,28 @@ private:
         } else if constexpr (sizeof(U) == 1 && sizeof(T) == 1) {
             return static_cast<T>(otherValue);
         } else {
-            if constexpr (orderU == std::endian::native || sizeof(U) == 1)
-                return convertFrom<T, std::endian::native>(static_cast<T>(otherValue));
+            if constexpr (orderU == utils::endian::native || sizeof(U) == 1)
+                return convertFrom<T, utils::endian::native>(static_cast<T>(otherValue));
             else
-                return convertFrom<T, std::endian::native>(static_cast<T>(byteSwap(otherValue)));
+                return convertFrom<T, utils::endian::native>(static_cast<T>(byteSwap(otherValue)));
         }
     }
 };
 #pragma pack(pop)
 
 template <typename T>
-using LittleEndian = Endian<T, std::endian::little>;
+using LittleEndian = Endian<T, utils::endian::little>;
 template <typename T>
-using BigEndian = Endian<T, std::endian::big>;
+using BigEndian = Endian<T, utils::endian::big>;
 } // namespace endianness
 
-namespace std {
-template <typename T, std::endian order>
-struct hash<endianness::Endian<T, order>>
+template <typename T, utils::endian order>
+struct std::hash<endianness::Endian<T, order>>
 {
     std::size_t operator()(const endianness::Endian<T, order> &number) const noexcept
     {
         return std::hash<T>{}(number.value);
     }
 };
-} // namespace std
 
 #endif //__ENDIANNESS__
